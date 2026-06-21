@@ -14,8 +14,8 @@ public class Program
 
     const float PlayerSpeed = 300f;
     const float ShotSpeed = 420f;
-    const float ShotTelegraphTime = 0.5f; // pause before a homing shot fires
-    const float ShotSpawnInterval = 3.5f; // base seconds between homing shots
+    const float ShotTelegraphTime = 0.5f;
+    const float ShotSpawnInterval = 3.5f;
 
     static Random rng = new Random();
 
@@ -23,8 +23,6 @@ public class Program
     static List<Vector2> enemies = new();
     static List<Vector2> velocities = new();
 
-    // homing shots: spawn at edge, telegraph, then fly straight at the player's
-    // position at the moment they fire (no tracking after that)
     class Shot
     {
         public Vector2 Pos;
@@ -42,11 +40,9 @@ public class Program
     static float timeAlive = 0;
     static float highScore = 0;
 
-    // simple screen shake on death
     static float shakeTimer = 0;
     static float shakeStrength = 0;
 
-    // ---------------- Upgrades ----------------
     enum UpgradeType { ExtraLife, SpeedBoost, TimeSlow, SmallerHitbox, Shield }
 
     class UpgradeOption
@@ -56,10 +52,9 @@ public class Program
         public string Description;
     }
 
-    const float UpgradeInterval = 30f; // grant a choice every 30s survived
+    const float UpgradeInterval = 30f;
     static float nextUpgradeAt = UpgradeInterval;
 
-    // how many times the player has picked each upgrade (stacks)
     static Dictionary<UpgradeType, int> upgradeStacks = new()
     {
         { UpgradeType.ExtraLife, 0 },
@@ -73,15 +68,13 @@ public class Program
     static int selectedUpgradeIndex = 0;
     static List<UpgradeOption> currentChoices = new();
 
-    // temporary invincibility (from shield pickups / extra-life revive)
     static float invincibleTimer = 0;
 
-    // per-stack tuning
-    const float SpeedBoostPerStack = 35f;       // added to PlayerSpeed per stack
-    const float TimeSlowPerStack = 0.10f;       // 10% slower enemies/shots per stack (capped)
-    const float HitboxReductionPerStack = 1.5f; // px smaller player radius per stack
-    const float MinPlayerRadius = 8f;           // floor so hitbox never disappears
-    const float ShieldSecondsPerStack = 1.0f;   // seconds of invincibility granted per stack, each level-up
+    const float SpeedBoostPerStack = 35f;
+    const float TimeSlowPerStack = 0.10f;
+    const float HitboxReductionPerStack = 1.5f;
+    const float MinPlayerRadius = 8f;
+    const float ShieldSecondsPerStack = 1.0f;
 
     static float CurrentPlayerSpeed =>
         PlayerSpeed + upgradeStacks[UpgradeType.SpeedBoost] * SpeedBoostPerStack;
@@ -94,7 +87,7 @@ public class Program
         get
         {
             float slow = upgradeStacks[UpgradeType.TimeSlow] * TimeSlowPerStack;
-            return MathF.Max(0.25f, 1f - slow); // never slow below 25% speed
+            return MathF.Max(0.25f, 1f - slow);
         }
     }
 
@@ -211,7 +204,6 @@ public class Program
 
     static void UpdateEnemies(float dt)
     {
-        // gentle difficulty ramp: enemies speed up slowly over time, tempered by Time Slow upgrade
         float rampMul = 1f + MathF.Min(timeAlive / 30f, 1.2f);
         float speedMul = rampMul * CurrentEnemySpeedMul;
 
@@ -232,7 +224,6 @@ public class Program
 
     static void UpdateShots(float dt)
     {
-        // spawn new homing shots over time, getting a bit more frequent as time goes on
         shotSpawnTimer -= dt;
         float interval = MathF.Max(1.5f, ShotSpawnInterval - timeAlive * 0.03f);
         if (shotSpawnTimer <= 0)
@@ -255,12 +246,8 @@ public class Program
                 s.TelegraphTimer -= dt;
                 if (s.TelegraphTimer <= 0)
                 {
-                    // lock the direction toward the player's CURRENT position, then never adjust again
                     Vector2 toPlayer = player - s.Pos;
-                    if (toPlayer != Vector2.Zero)
-                        toPlayer = Vector2.Normalize(toPlayer);
-                    else
-                        toPlayer = new Vector2(1, 0);
+                    toPlayer = toPlayer != Vector2.Zero ? Vector2.Normalize(toPlayer) : new Vector2(1, 0);
 
                     s.Vel = toPlayer * ShotSpeed * CurrentEnemySpeedMul;
                     s.Fired = true;
@@ -270,7 +257,6 @@ public class Program
             {
                 s.Pos += s.Vel * dt;
 
-                // remove once well off-screen
                 if (s.Pos.X < -50 || s.Pos.X > Width + 50 || s.Pos.Y < -50 || s.Pos.Y > Height + 50)
                 {
                     shots.RemoveAt(i);
@@ -281,8 +267,6 @@ public class Program
             shots[i] = s;
         }
     }
-
-    // ---------------- Upgrade choice flow ----------------
 
     static readonly Dictionary<UpgradeType, (string Name, string Desc)> UpgradeInfo = new()
     {
@@ -297,8 +281,6 @@ public class Program
     {
         nextUpgradeAt += UpgradeInterval;
 
-        // shield upgrade also grants a burst of invincibility on every level-up,
-        // scaled by how many shield stacks have been picked so far
         if (upgradeStacks[UpgradeType.Shield] > 0)
             invincibleTimer = MathF.Max(invincibleTimer, upgradeStacks[UpgradeType.Shield] * ShieldSecondsPerStack);
 
@@ -334,11 +316,11 @@ public class Program
         if (Raylib.IsKeyPressed(KeyboardKey.Two) && currentChoices.Count > 1) selectedUpgradeIndex = 1;
         if (Raylib.IsKeyPressed(KeyboardKey.Three) && currentChoices.Count > 2) selectedUpgradeIndex = 2;
 
-        bool confirmedByNumber = Raylib.IsKeyPressed(KeyboardKey.One) ||
+        bool numberPicked = Raylib.IsKeyPressed(KeyboardKey.One) ||
             (Raylib.IsKeyPressed(KeyboardKey.Two) && currentChoices.Count > 1) ||
             (Raylib.IsKeyPressed(KeyboardKey.Three) && currentChoices.Count > 2);
 
-        if (confirmedByNumber || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.Space))
+        if (numberPicked || Raylib.IsKeyPressed(KeyboardKey.Enter) || Raylib.IsKeyPressed(KeyboardKey.Space))
         {
             ApplyUpgrade(currentChoices[selectedUpgradeIndex].Type);
             state = GameState.Playing;
@@ -384,8 +366,6 @@ public class Program
         if (extraLives > 0)
         {
             extraLives--;
-            // brief invincibility and a clear-the-immediate-area moment so the
-            // revive isn't an instant re-death
             invincibleTimer = 1.5f;
             shakeTimer = 0.25f;
             shakeStrength = 5f;
@@ -427,19 +407,10 @@ public class Program
             );
         }
 
-        switch (state)
-        {
-            case GameState.Menu:
-                DrawMenu();
-                break;
-
-            case GameState.Playing:
-            case GameState.Paused:
-            case GameState.GameOver:
-            case GameState.Upgrade:
-                DrawGame(shakeOffset);
-                break;
-        }
+        if (state == GameState.Menu)
+            DrawMenu();
+        else
+            DrawGame(shakeOffset);
 
         Raylib.EndDrawing();
     }
@@ -453,13 +424,11 @@ public class Program
 
         DrawCentered("Press ENTER or SPACE to Play", 260, 22, Color.SkyBlue);
         DrawCentered("Press Q to Quit", 295, 20, Color.Gray);
-
         DrawCentered("WASD to move  |  Avoid red balls and blue shots", 380, 18, Color.LightGray);
 
         if (highScore > 0)
             DrawCentered($"Best Time: {highScore:0.0}s", 420, 20, Color.Gold);
 
-        // small preview of a blue shot so players know what it looks like
         Raylib.DrawCircle(Width / 2, 470, ShotRadius, Color.SkyBlue);
         DrawCentered("Telegraphs briefly, then flies straight - dodge it!", 495, 16, Color.LightGray);
     }
@@ -468,7 +437,6 @@ public class Program
     {
         Vector2 Off(Vector2 v) => v + shakeOffset;
 
-        // player
         float playerR = CurrentPlayerRadius;
         if (invincibleTimer > 0)
         {
@@ -478,16 +446,13 @@ public class Program
         }
         Raylib.DrawCircleV(Off(player), playerR, Color.Blue);
 
-        // enemies
         foreach (var e in enemies)
             Raylib.DrawCircleV(Off(e), EnemyRadius, Color.Red);
 
-        // homing shots
         foreach (var s in shots)
         {
             if (!s.Fired)
             {
-                // telegraph: pulsing outline so the player can react
                 float pulse = 0.5f + 0.5f * MathF.Sin((float)Raylib.GetTime() * 20f);
                 Color c = new Color((int)Color.SkyBlue.R, (int)Color.SkyBlue.G, (int)Color.SkyBlue.B, (int)(120 + pulse * 135));
                 Raylib.DrawCircleV(Off(s.Pos), ShotRadius + 4, c);
@@ -513,9 +478,7 @@ public class Program
         }
 
         if (state == GameState.Upgrade)
-        {
             DrawUpgradeChoice();
-        }
 
         if (state == GameState.GameOver)
         {
@@ -528,7 +491,6 @@ public class Program
 
     static void DrawUpgradeHud()
     {
-        // top-right: extra lives as small hearts, then a compact list of active upgrade stacks
         string livesText = extraLives > 0 ? $"Lives +{extraLives}" : "";
         int x = Width - 20;
 
@@ -577,8 +539,8 @@ public class Program
             int cx = startX + i * (cardW + gap);
             bool selected = i == selectedUpgradeIndex;
 
-            Color border = selected ? Color.Gold : Color.Gray;
-            Color fill = selected ? new Color(50, 50, 70, 255) : new Color(35, 35, 45, 255);
+            var border = selected ? Color.Gold : Color.Gray;
+            var fill = selected ? new Color(50, 50, 70, 255) : new Color(35, 35, 45, 255);
 
             Raylib.DrawRectangle(cx, cardY, cardW, cardH, fill);
             Raylib.DrawRectangleLinesEx(new Rectangle(cx, cardY, cardW, cardH), selected ? 4 : 2, border);
@@ -591,7 +553,6 @@ public class Program
 
             int nameW = Raylib.MeasureText(opt.Name, 20);
             Raylib.DrawText(opt.Name, cx + cardW / 2 - nameW / 2, cardY + 50, 20, Color.White);
-
             DrawWrapped(opt.Description, cx + 16, cardY + 90, cardW - 32, 16, Color.LightGray);
 
             if (stacks > 0)
@@ -639,7 +600,6 @@ public class Program
     static Vector2 RandomEdge()
     {
         int side = rng.Next(4);
-
         return side switch
         {
             0 => new Vector2(rng.Next(Width), 0),
